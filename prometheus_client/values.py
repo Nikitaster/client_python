@@ -1,4 +1,7 @@
 import os
+import time
+from random import choices
+from string import digits, ascii_letters
 from threading import Lock
 import warnings
 
@@ -46,7 +49,11 @@ def MultiProcessValue(process_identifier=os.getpid):
     """
     files = {}
     values = []
-    pid = {'value': process_identifier()}
+    custom_identifier = '{}{}'.format(
+        round(time.time()),
+        ''.join(choices(digits + ascii_letters, k=12))
+    )
+    pid = {'value': '{}_{}'.format(process_identifier(), custom_identifier)}
     # Use a single global lock when in multi-processing mode
     # as we presume this means there is no threading going on.
     # This avoids the need to also have mutexes in __MmapDict.
@@ -73,19 +80,18 @@ def MultiProcessValue(process_identifier=os.getpid):
             if typ == 'gauge':
                 file_prefix = typ + '_' + multiprocess_mode
             else:
-                file_prefix = typ
+                file_prefix = typ + '_'
             if file_prefix not in files:
                 filename = os.path.join(
                     os.environ.get('PROMETHEUS_MULTIPROC_DIR'),
                     '{}_{}.db'.format(file_prefix, pid['value']))
-
                 files[file_prefix] = MmapedDict(filename)
             self._file = files[file_prefix]
             self._key = mmap_key(metric_name, name, labelnames, labelvalues)
             self._value = self._file.read_value(self._key)
 
         def __check_for_pid_change(self):
-            actual_pid = process_identifier()
+            actual_pid = '{}_{}'.format(process_identifier(), custom_identifier)
             if pid['value'] != actual_pid:
                 pid['value'] = actual_pid
                 # There has been a fork(), reset all the values.
